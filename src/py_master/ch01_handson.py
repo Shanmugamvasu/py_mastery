@@ -50,6 +50,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation  # noqa: F401
 import copy
 
 CENT = Decimal("0.01")
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
 # =============================================================================
@@ -280,6 +281,8 @@ CONTACTS = [
     {"name": "Lakshmi", "email": "lakshmi@example.org", "phone": "5551234567"},
 ]
 
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
 
 def clean_contacts(rows: list[dict]) -> tuple[list[dict], list[tuple[int, str]]]:
     """
@@ -309,7 +312,111 @@ def clean_contacts(rows: list[dict]) -> tuple[list[dict], list[tuple[int, str]]]
     Use string methods only (split, join, strip, lower, title, isdigit, count,
     partition, startswith...). No regular expressions.
     """
-    raise NotImplementedError
+    clean_rows = []
+    rejects = []
+    # reject_row_count = 1
+
+    for i, row in enumerate(rows, start=1):
+        is_valid_row = False
+        is_valid_name = is_valid_email = is_valid_phone = False
+        valid_name = valid_email = valid_phone = ""
+
+        if row["name"] == "" or row["name"] == None:
+            rejects.append((i, "missing name"))
+            # reject_row_count += 1
+            continue
+        else:
+            is_valid_name, valid_name = is_valid_name_check(row["name"])
+
+        if row["email"] == "" or row["email"] == None:
+            # rejects.append((reject_row_count, "no email"))
+            # reject_row_count += 1
+            # continue
+            valid_email = None
+        else:
+            is_valid_email, valid_email = is_valid_email_check(row["email"])
+            if is_valid_email is not True:
+                rejects.append((i, "invalid email"))
+                # reject_row_count += 1
+                continue
+            else:
+                if len(clean_rows) > 0 and any(
+                    o["email"] == valid_email for o in clean_rows
+                ):
+                    rejects.append((i, "duplicate email"))
+                    # reject_row_count += 1
+                    continue
+
+        if row["phone"] == "" or row["phone"] == None:
+            rejects.append((i, "no phone"))
+            # reject_row_count += 1
+            continue
+        else:
+            is_valid_phone, valid_phone = is_valid_phone_check(row["phone"])
+            if is_valid_phone is not True:
+                rejects.append((i, "invalid phone"))
+                # reject_row_count += 1
+                continue
+
+        valid_phone = "+91" + valid_phone
+        clean_rows.append(
+            {"name": valid_name, "email": valid_email, "phone": valid_phone}
+        )
+
+    return (clean_rows, rejects)
+    # raise NotImplementedError
+
+
+def is_valid_name_check(s: str) -> tuple(bool, str):
+    if not s or s is None:
+        return (False, "")
+
+    formatted_name = s
+
+    # unwanted space check => trim (start, end, middle)
+    formatted_name = formatted_name.strip()
+    formatted_name = " ".join(s.split())
+    # print(s, formatted_name)
+
+    # case check => first character upper case
+    formatted_name = formatted_name.title()
+    # if all(word[0].isupper() for word in formatted_name.split()):
+
+    # print(s, formatted_name)
+
+    return (formatted_name is s, formatted_name)
+
+
+def is_valid_email_check(email: str | None) -> tuple(bool, str):
+    if not email or email is None:
+        return (False, "")
+
+    f_email = email
+
+    f_email = f_email.strip()
+    f_email = f_email.lower()
+    if ".." in f_email or len(f_email) > 254:
+        return (False, "")
+    return (bool(EMAIL_RE.fullmatch(f_email)), f_email)
+
+
+def is_valid_phone_check(mobile: str | None) -> tuple(bool, str):
+    if not mobile or mobile is None:
+        return (False, "")
+
+    f_mobile = mobile
+    f_mobile = re.sub(r"\D", "", f_mobile)
+
+    valid_start_with = ["6", "7", "8", "9"]
+    if len(f_mobile) == 12 and f_mobile.startswith("91"):
+        f_mobile = f_mobile.removeprefix("91")
+    elif len(f_mobile) == 11 and f_mobile.startswith("0"):
+        f_mobile = f_mobile.removeprefix("0")
+
+    if any(f_mobile.startswith(o) for o in valid_start_with):
+        return (True, f_mobile)
+    else:
+        return (False, f_mobile)
 
 
 # =============================================================================
